@@ -3,6 +3,7 @@ import User from "../models/User";
 import bcrypt from "bcryptjs";
 import cloudinary from "../lib/cloudinary";
 
+// --- Signup ---
 export const signup = async (req, res) => {
     const { fullName, email, password, bio } = req.body;
 
@@ -26,7 +27,6 @@ export const signup = async (req, res) => {
         });
 
         const token = generateToken(newUser._id);
-
         const { password: _, ...userWithoutPassword } = newUser._doc;
 
         res.status(201).json({
@@ -42,10 +42,43 @@ export const signup = async (req, res) => {
     }
 };
 
+// --- Login ---
+export const login = async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        const userData = await User.findOne({ email });
+        if (!userData) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        const isPasswordCorrect = await bcrypt.compare(password, userData.password);
+        if (!isPasswordCorrect) {
+            return res.status(401).json({ success: false, message: "Invalid credentials" });
+        }
+
+        const token = generateToken(userData._id);
+        const { password: _, ...userWithoutPassword } = userData._doc;
+
+        res.json({
+            success: true,
+            userData: userWithoutPassword,
+            token,
+            message: "Login successful"
+        });
+
+    } catch (error) {
+        console.error(error.message);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// --- Check Authentication ---
 export const checkAuth = (req, res) => {
     res.json({ success: true, user: req.user });
 };
 
+// --- Update Profile ---
 export const updateProfile = async (req, res) => {
     try {
         const { profilePic, bio, fullName } = req.body;
@@ -58,11 +91,7 @@ export const updateProfile = async (req, res) => {
             updatedFields.profilePic = uploadResult.secure_url;
         }
 
-        const updatedUser = await User.findByIdAndUpdate(
-            userId,
-            updatedFields,
-            { new: true }
-        );
+        const updatedUser = await User.findByIdAndUpdate(userId, updatedFields, { new: true });
 
         res.json({ success: true, user: updatedUser });
 
